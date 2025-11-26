@@ -3,6 +3,7 @@
 # Justin Fiorillo haoranlu@umich.edu 77117441
 
 import os
+<<<<<<< HEAD
 from dotenv import load_dotenv
 from pathlib import Path
 import spotipy
@@ -10,18 +11,46 @@ from spotipy.oauth2 import SpotifyOAuth
 
 env_path = Path(__file__).resolve().parent / ".env"
 load_dotenv(dotenv_path=env_path)
+=======
 
-scope = "user-library-read"
+from database import create_tables
+from apis import (
+    gather_spotify_data,
+    gather_lastfm_data,
+    gather_genius_data
+)
+from analysis_and_viz import (
+    process_data,
+    create_visualizations
+)
+>>>>>>> 2141ae9 (main)
 
-sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
-    client_id=os.getenv("SPOTIPY_CLIENT_ID"),
-    client_secret=os.getenv("SPOTIPY_CLIENT_SECRET"),
-    redirect_uri=os.getenv("SPOTIPY_REDIRECT_URI"),
-    scope=scope
-))
+def main():
 
-results = sp.current_user_saved_tracks(limit=20)
+    #SQL tables
+    create_tables()
 
+    print("getting Spotify data ")
+    gather_spotify_data(limit=25)
+
+<<<<<<< HEAD
 for idx, item in enumerate(results['items']):
     track = item['track']
     print(idx, track['artists'][0]['name'], "-", track['name'])
+=======
+    print("getting Last.fm data")
+    gather_lastfm_data(limit=25)
+
+    print("getting Genius metadata")
+    gather_genius_data(limit=25)
+
+    process_data()
+
+    print("Visualizations")
+    create_visualizations()
+
+    print("Check output folder")
+
+if __name__ == "__main__":
+    main()
+>>>>>>> 2141ae9 (main)
