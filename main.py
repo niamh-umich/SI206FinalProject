@@ -3,11 +3,13 @@
 # Justin Fiorillo haoranlu@umich.edu 77117441
 
 import os
+from dotenv import load_dotenv
+from pathlib import Path
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-from dotenv import load_dotenv
 
-load_dotenv()
+env_path = Path(__file__).resolve().parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 scope = "user-library-read"
 
