@@ -1,9 +1,23 @@
-alternative: 91.25
+WSUM 91.7 FM Madison: 89.5
 Coldplay: 89.5
+2019: 89.5
+alternative: 89.2
+singer-songwriter: 89.0
+electropop: 89.0
+british: 89.0
+dance: 88.0
+future bass: 87.0
 2010s: 87.0
+indie folk: 85.5
 folk: 85.5
-indie: 75.17
-pop: 73.92
-synthpop: 50.0
-rock: 48.0
+2018: 85.5
+indie: 77.0
+pop: 69.93
+synthpop: 63.0
+rock: 62.67
+alternative rock: 48.0
 2017: 46.5
+electronic: 45.5
+rnb: 45.25
+2016: 31.33
+pop rock: 6.5

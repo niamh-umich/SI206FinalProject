@@ -7,7 +7,10 @@ from database import create_tables
 from api import (
     gather_spotify_data,
     gather_lastfm_data,
-    gather_genius_data,
+    gather_genius_data
+)
+
+from visualisations import (
     process_data,
     create_visualizations
 )
@@ -16,13 +19,13 @@ def main():
     create_tables()
 
     print("Getting Spotify data...")
-    gather_spotify_data(limit=25)
+    gather_spotify_data(limit=100)
 
     print("Getting Last.fm data...")
     gather_lastfm_data(limit=25)
 
     print("Getting Genius metadata...")
-    gather_genius_data(limit=25)
+    gather_genius_data(limit=100)
 
     process_data()
     create_visualizations()
