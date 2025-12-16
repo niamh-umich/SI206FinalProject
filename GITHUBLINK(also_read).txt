@@ -1,0 +1,5 @@
+project.db is the database file
+all visualizations are under /output
+
+link to github:
+https://github.com/niamh-umich/SI206FinalProject.git
