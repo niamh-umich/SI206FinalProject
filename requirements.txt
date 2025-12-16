@@ -1,2 +1,5 @@
 spotipy==2.25.1
-python-dotenv
+
+spotipy
+requests
+matplotlib

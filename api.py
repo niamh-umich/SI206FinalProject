@@ -1,109 +1,183 @@
-import os
 import sqlite3
-from dotenv import load_dotenv
+import requests
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
+import matplotlib.pyplot as plt
+import os
 
 from database import get_connection
 
-load_dotenv()
+SPOTIPY_CLIENT_ID = "e1f4ef3c783047f38f52bcbf7d0b8df5"
+SPOTIPY_CLIENT_SECRET = "8f38ea7b4f3c4ab99e53f7f60315a61f"
+LASTFM_API_KEY = "50983eca61b9dde155f61695a6b1919f"
+GENIUS_TOKEN = "1UGL0TI68nJNcqEhnG17VZln745U281Cjw9TL6UuZLfzJNoAEwR_ZsrbpQSxh12-"
 
-sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(
-    client_id=os.getenv("SPOTIPY_CLIENT_ID"),
-    client_secret=os.getenv("SPOTIPY_CLIENT_SECRET")
-))
+def gather_spotify_data(limit=25):
+    sp = spotipy.Spotify(
+        auth_manager=SpotifyClientCredentials(
+            client_id=SPOTIPY_CLIENT_ID,
+            client_secret=SPOTIPY_CLIENT_SECRET
+        )
+    )
 
-
-# ------------------------------
-# SPOTIFY
-# ------------------------------
-
-def gather_spotify_data(limit=150):
     conn = get_connection()
     cur = conn.cursor()
 
-    print("Pulling top tracks from Spotify...")
+    playlist_id = "5ABHKGoOzxkaa28ttQV9sE"  # Spotify Top Hits
+    results = sp.playlist_items(playlist_id, limit=limit)
 
-    # Get Spotify editorial chart playlist (Top Hits)
-    playlist_id = "5ABHKGoOzxkaa28ttQV9sE"
-    results = sp.playlist_items(playlist_id, additional_types=["track"], limit=100)
-
-    tracks = results["items"]
-
-    count = 0
-
-    for item in tracks:
+    for item in results["items"]:
         track = item["track"]
-        if not track or not track["id"]:
+        if not track:
             continue
 
-        track_id = track["id"]
-        track_name = track["name"]
-        popularity = track["popularity"]
-        duration = track["duration_ms"]
-        release_date = track["album"]["release_date"]
-
         artist = track["artists"][0]
-        artist_spotify_id = artist["id"]
-        artist_name = artist["name"]
+        artist_info = sp.artist(artist["id"])
 
-        artist_info = sp.artist(artist_spotify_id)
-        followers = artist_info["followers"]["total"]
-        artist_popularity = artist_info["popularity"]
-
-        # ---------------------------
-        # ARTISTS TABLE
-        # ---------------------------
+        # Insert Artist
         cur.execute("""
-            INSERT OR IGNORE INTO Artists (spotify_artist_id, name, popularity, followers)
+            INSERT OR IGNORE INTO Artists
+            (spotify_artist_id, name, popularity, followers)
             VALUES (?, ?, ?, ?)
-        """, (artist_spotify_id, artist_name, artist_popularity, followers))
+        """, (
+            artist["id"],
+            artist["name"],
+            artist_info["popularity"],
+            artist_info["followers"]["total"]
+        ))
 
-        cur.execute("""
-            SELECT id FROM Artists WHERE spotify_artist_id = ?
-        """, (artist_spotify_id,))
-        artist_db_id = cur.fetchone()[0]
+        cur.execute("SELECT id FROM Artists WHERE spotify_artist_id=?", (artist["id"],))
+        artist_id = cur.fetchone()[0]
 
-        # ---------------------------
-        # TRACKS TABLE
-        # ---------------------------
+        # Insert Track
         cur.execute("""
             INSERT OR IGNORE INTO Tracks
             (spotify_track_id, artist_id, name, release_date, duration_ms, popularity)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (
-            track_id,
-            artist_db_id,
-            track_name,
-            release_date,
-            duration,
-            popularity
+            track["id"],
+            artist_id,
+            track["name"],
+            track["album"]["release_date"],
+            track["duration_ms"],
+            track["popularity"]
         ))
-
-        cur.execute("""
-            SELECT id FROM Tracks WHERE spotify_track_id = ?
-        """, (track_id,))
-        track_db_id = cur.fetchone()[0]
-
-        count += 1
-        print(f"Saved {count}: {track_name} - {artist_name}")
 
     conn.commit()
     conn.close()
 
-    print("Spotify import complete!")
-
-
-# ------------------------------
-# STUBS (you already call these)
-# ------------------------------
+# LAST.FM
 
 def gather_lastfm_data(limit=25):
-    print("TODO: implement Last.fm")
-    pass
+    conn = get_connection()
+    cur = conn.cursor()
 
+    cur.execute("SELECT id, name FROM Tracks LIMIT 1")
+    track_id, name = cur.fetchone()
+
+    url = (
+        "http://ws.audioscrobbler.com/2.0/"
+        f"?method=track.gettoptags&track={name}"
+        f"&api_key={LASTFM_API_KEY}&format=json"
+    )
+
+    tags = requests.get(url).json().get("toptags", {}).get("tag", [])
+
+    for tag in tags[:limit]:
+        cur.execute("""
+            INSERT INTO TrackTags (track_id, tag, tag_count)
+            VALUES (?, ?, ?)
+        """, (track_id, tag["name"], int(tag["count"])))
+
+    conn.commit()
+    conn.close()
+
+# GENIUS
 
 def gather_genius_data(limit=25):
+<<<<<<< HEAD
     print("TODO: implement Genius")
     pass
 #hello
+=======
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("SELECT id, name FROM Tracks LIMIT 1")
+    track_id, name = cur.fetchone()
+
+    headers = {"Authorization": f"Bearer {GENIUS_TOKEN}"}
+    url = f"https://api.genius.com/search?q={name}"
+
+    hits = requests.get(url, headers=headers).json()["response"]["hits"]
+
+    for hit in hits[:limit]:
+        song = hit["result"]
+        cur.execute("""
+            INSERT INTO GeniusMetadata
+            (track_id, genius_song_id, annotation_count, pageviews, hot, lyrics_state)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            track_id,
+            song["id"],
+            song.get("annotation_count", 0),
+            song.get("pageviews", 0),
+            int(song["stats"]["hot"]),
+            song["lyrics_state"]
+        ))
+
+    conn.commit()
+    conn.close()
+
+
+# ANALYSIS
+
+
+def process_data():
+    conn = get_connection()
+    cur = conn.cursor()
+
+    rows = cur.execute("""
+        SELECT TrackTags.tag, AVG(Tracks.popularity)
+        FROM Tracks
+        JOIN TrackTags ON Tracks.id = TrackTags.track_id
+        GROUP BY TrackTags.tag
+    """).fetchall()
+
+    os.makedirs("output", exist_ok=True)
+
+    with open("output/calculations.txt", "w") as f:
+        for tag, avg_pop in rows:
+            f.write(f"{tag}: {avg_pop}\n")
+
+    conn.close()
+
+
+# VISUALIZATION
+
+
+def create_visualizations():
+    conn = get_connection()
+    cur = conn.cursor()
+
+    rows = cur.execute("""
+        SELECT TrackTags.tag, AVG(Tracks.popularity)
+        FROM Tracks
+        JOIN TrackTags ON Tracks.id = TrackTags.track_id
+        GROUP BY TrackTags.tag
+    """).fetchall()
+
+    tags = [r[0] for r in rows]
+    values = [r[1] for r in rows]
+
+    plt.figure(figsize=(10, 5))
+    plt.bar(tags, values)
+    plt.xticks(rotation=45)
+    plt.ylabel("Average Spotify Popularity")
+    plt.title("Average Track Popularity by Last.fm Tag")
+    plt.tight_layout()
+    plt.savefig("output/avg_popularity_by_tag.png")
+    plt.close()
+
+    conn.close()
+>>>>>>> ba36563 (working version 1)
