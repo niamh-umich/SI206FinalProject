@@ -4,6 +4,7 @@ import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 import matplotlib.pyplot as plt
 import os
+import urllib.parse
 
 from database import get_connection
 
@@ -72,34 +73,58 @@ def gather_lastfm_data(limit=25):
     conn = get_connection()
     cur = conn.cursor()
 
-    cur.execute("SELECT id, name FROM Tracks LIMIT 1")
-    track_id, name = cur.fetchone()
+    # Get tracks with artist names
+    cur.execute("""
+        SELECT Tracks.id, Tracks.name, Artists.name
+        FROM Tracks
+        JOIN Artists ON Tracks.artist_id = Artists.id
+        LIMIT ?
+    """, (limit,))
 
-    url = (
-        "http://ws.audioscrobbler.com/2.0/"
-        f"?method=track.gettoptags&track={name}"
-        f"&api_key={LASTFM_API_KEY}&format=json"
-    )
+    tracks = cur.fetchall()
+    inserted = 0
 
-    tags = requests.get(url).json().get("toptags", {}).get("tag", [])
+    for track_id, track_name, artist_name in tracks:
+        # URL-encode names to handle spaces/special chars
+        track_q = urllib.parse.quote(track_name)
+        artist_q = urllib.parse.quote(artist_name)
 
-    for tag in tags[:limit]:
-        cur.execute("""
-            INSERT INTO TrackTags (track_id, tag, tag_count)
-            VALUES (?, ?, ?)
-        """, (track_id, tag["name"], int(tag["count"])))
+        url = (
+            "http://ws.audioscrobbler.com/2.0/"
+            f"?method=track.gettoptags"
+            f"&track={track_q}"
+            f"&artist={artist_q}"
+            f"&api_key={LASTFM_API_KEY}"
+            f"&format=json"
+        )
+
+        response = requests.get(url)
+        data = response.json()
+
+        tags = data.get("toptags", {}).get("tag", [])
+
+        for tag in tags[:3]:  # limit tags per track
+            if "name" in tag:
+                cur.execute("""
+                    INSERT INTO TrackTags (track_id, tag, tag_count)
+                    VALUES (?, ?, ?)
+                """, (
+                    track_id,
+                    tag["name"],
+                    int(tag.get("count", 0))
+                ))
+                inserted += 1
 
     conn.commit()
     conn.close()
 
+    print(f"Inserted {inserted} Last.fm tags")
+
+
+
 # GENIUS
 
 def gather_genius_data(limit=25):
-<<<<<<< HEAD
-    print("TODO: implement Genius")
-    pass
-#hello
-=======
     conn = get_connection()
     cur = conn.cursor()
 
@@ -138,41 +163,45 @@ def process_data():
     cur = conn.cursor()
 
     rows = cur.execute("""
-        SELECT TrackTags.tag, AVG(Tracks.popularity)
+        SELECT TrackTags.tag, AVG(Tracks.popularity) AS avg_popularity
         FROM Tracks
         JOIN TrackTags ON Tracks.id = TrackTags.track_id
         GROUP BY TrackTags.tag
+        HAVING COUNT(*) > 1
+        ORDER BY avg_popularity DESC
     """).fetchall()
 
     os.makedirs("output", exist_ok=True)
 
     with open("output/calculations.txt", "w") as f:
         for tag, avg_pop in rows:
-            f.write(f"{tag}: {avg_pop}\n")
+            f.write(f"{tag}: {round(avg_pop, 2)}\n")
 
     conn.close()
 
 
-# VISUALIZATION
 
+# VISUALIZATION
 
 def create_visualizations():
     conn = get_connection()
     cur = conn.cursor()
 
     rows = cur.execute("""
-        SELECT TrackTags.tag, AVG(Tracks.popularity)
+        SELECT TrackTags.tag, AVG(Tracks.popularity) AS avg_popularity
         FROM Tracks
         JOIN TrackTags ON Tracks.id = TrackTags.track_id
         GROUP BY TrackTags.tag
+        HAVING COUNT(*) > 1
+        ORDER BY avg_popularity DESC
     """).fetchall()
 
     tags = [r[0] for r in rows]
     values = [r[1] for r in rows]
 
-    plt.figure(figsize=(10, 5))
+    plt.figure(figsize=(12, 6))
     plt.bar(tags, values)
-    plt.xticks(rotation=45)
+    plt.xticks(rotation=45, ha="right")
     plt.ylabel("Average Spotify Popularity")
     plt.title("Average Track Popularity by Last.fm Tag")
     plt.tight_layout()
@@ -180,4 +209,3 @@ def create_visualizations():
     plt.close()
 
     conn.close()
->>>>>>> ba36563 (working version 1)

@@ -1,0 +1,9 @@
+alternative: 91.25
+Coldplay: 89.5
+2010s: 87.0
+folk: 85.5
+indie: 75.17
+pop: 73.92
+synthpop: 50.0
+rock: 48.0
+2017: 46.5
